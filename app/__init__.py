@@ -1,0 +1,2 @@
+"""HR CV chatbot package."""
+
