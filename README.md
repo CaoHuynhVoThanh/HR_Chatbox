@@ -27,7 +27,7 @@ Các lệnh trong chat:
 - `/reload` — đọc lại CV từ ổ đĩa
 - `/quit` — thoát
 
-## FastAPI backend và lưu dữ liệu
+## FastAPI backend và dữ liệu phiên
 
 Khởi động backend:
 
@@ -44,27 +44,19 @@ BACKEND_PORT=8000
 BACKEND_PUBLIC_URL=https://api.example.com
 ```
 
-Backend lưu dữ liệu qua lần reload/restart:
+Mở `BACKEND_PUBLIC_URL` trong trình duyệt để dùng client đơn giản đi kèm. Client lưu toàn bộ dữ liệu ở `sessionStorage` của tab:
 
-- File CV: `data/uploads/<user-id>/...`.
-- SQLite: `data/hr_chatbot.db` chứa CV metadata, văn bản CV đã trích xuất, conversation và messages.
+- File CV được mã hóa Base64, tên file và văn bản CV đã trích xuất.
+- Mọi tin nhắn của phiên chat.
 
-Các file này đều bị Git bỏ qua. API yêu cầu header `X-User-ID` là UUID. Frontend cần tạo một UUID một lần bằng `crypto.randomUUID()` và lưu nó ở `localStorage`; đây chỉ là định danh demo, **không phải xác thực**.
+FastAPI **không ghi CV hoặc hội thoại vào database hay thư mục upload**. Khi cần trích xuất, CV chỉ được ghi vào file tạm rồi xóa ngay sau response. Khi reload trang trong cùng tab, client nạp lại dữ liệu từ `sessionStorage`; khi đóng tab, dữ liệu bị xóa bởi trình duyệt.
 
-Luồng gọi API:
+API chỉ có hai endpoint không trạng thái:
 
-1. `POST /api/cv` (multipart field `file`) — upload một CV PDF/DOCX. Nếu đã có CV, gọi `POST /api/cv?replace=true` để thay thế một cách tường minh.
-2. `POST /api/conversations` — tạo cuộc hội thoại cho CV hiện tại.
-3. `POST /api/conversations/{conversation_id}/messages` với JSON `{"content": "..."}` — lưu tin nhắn, gọi Gemini và lưu phản hồi.
-4. `GET /api/conversations/{conversation_id}/messages` — khôi phục lịch sử khi người dùng reload trang.
+1. `POST /api/cv/extract` — nhận multipart `file`, trích xuất văn bản và không lưu file.
+2. `POST /api/chat` — nhận `cv_text`, `history` và `content`; gọi Gemini rồi trả về phản hồi.
 
-Ví dụ upload từ PowerShell (dùng cùng một `$userId` cho mọi request của cùng người dùng):
-
-```powershell
-$userId = [guid]::NewGuid().ToString()
-$backendUrl = "http://127.0.0.1:8000" # đặt theo BACKEND_PUBLIC_URL
-curl.exe -X POST "$backendUrl/api/cv" -H "X-User-ID: $userId" -F "file=@C:\duong-dan\cv.pdf"
-```
+Lưu ý: `sessionStorage` không thể chứa trực tiếp đối tượng `File`, vì vậy client chuyển file sang Base64. Dung lượng mỗi tab tùy trình duyệt; client giới hạn file CV tối đa 3 MB để giảm nguy cơ vượt quota. Không dùng phương án này nếu cần giữ dữ liệu sau khi đóng tab hoặc cần đồng bộ nhiều thiết bị.
 
 ## Luồng agent
 
@@ -76,9 +68,8 @@ Mỗi lượt chat tạo một brief bao gồm năm vai trò: `Interview Planner
 app/
   core/       # cấu hình, đọc CV, state và agent orchestration
   cli.py      # demo terminal
-  server.py   # FastAPI routes: CV, conversation, message
-  core/persistence.py # SQLite repository
-data/uploads/ # CV đã upload (tự tạo, bị Git ignore)
+  server.py   # FastAPI stateless routes: extract CV, chat
+  static/     # client dùng sessionStorage
 ```
 
 Nguồn tham khảo SDK Gemini: [Google AI for Developers](https://ai.google.dev/api/generate-content).

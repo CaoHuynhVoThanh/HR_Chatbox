@@ -2,15 +2,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 from dotenv import load_dotenv
 
 
 @dataclass(frozen=True)
 class BackendSettings:
-    database_path: Path
-    uploads_directory: Path
     allowed_origins: tuple[str, ...]
     backend_host: str
     backend_port: int
@@ -21,9 +18,6 @@ class BackendSettings:
 class Settings:
     gemini_api_key: str
     gemini_model: str
-    database_path: Path = Path("data/hr_chatbot.db")
-    uploads_directory: Path = Path("data/uploads")
-    allowed_origins: tuple[str, ...] = ("http://localhost:5173",)
 
 
 def get_backend_settings() -> BackendSettings:
@@ -41,8 +35,6 @@ def get_backend_settings() -> BackendSettings:
     if not backend_host:
         raise RuntimeError("BACKEND_HOST không được để trống.")
     return BackendSettings(
-        database_path=Path(os.getenv("DATABASE_PATH", "data/hr_chatbot.db")),
-        uploads_directory=Path(os.getenv("UPLOADS_DIRECTORY", "data/uploads")),
         allowed_origins=tuple(
             origin.strip()
             for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
@@ -67,7 +59,4 @@ def get_settings() -> Settings:
     return Settings(
         gemini_api_key=api_key,
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
-        database_path=backend.database_path,
-        uploads_directory=backend.uploads_directory,
-        allowed_origins=backend.allowed_origins,
     )
