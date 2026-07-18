@@ -32,8 +32,13 @@ class ChatSession:
 
 
 class CVChatService:
-    def __init__(self, settings: Settings, cv: CVDocument) -> None:
-        self.session = ChatSession(cv=cv)
+    def __init__(
+        self,
+        settings: Settings,
+        cv: CVDocument,
+        history: list[tuple[str, str]] | None = None,
+    ) -> None:
+        self.session = ChatSession(cv=cv, history=history or [])
         self.orchestrator = AgentOrchestrator()
         model = ChatGoogleGenerativeAI(
             model=settings.gemini_model,
@@ -69,4 +74,3 @@ class CVChatService:
         ).strip()
         self.session.history.append((text, response))
         return response
-

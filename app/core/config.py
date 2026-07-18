@@ -2,19 +2,63 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
+
+
+@dataclass(frozen=True)
+class BackendSettings:
+    database_path: Path
+    uploads_directory: Path
+    allowed_origins: tuple[str, ...]
+    backend_host: str
+    backend_port: int
+    backend_public_url: str
 
 
 @dataclass(frozen=True)
 class Settings:
     gemini_api_key: str
     gemini_model: str
+    database_path: Path = Path("data/hr_chatbot.db")
+    uploads_directory: Path = Path("data/uploads")
+    allowed_origins: tuple[str, ...] = ("http://localhost:5173",)
+
+
+def get_backend_settings() -> BackendSettings:
+    """Load FastAPI storage, browser-origin and network settings from .env."""
+    load_dotenv()
+    raw_port = os.getenv("BACKEND_PORT", "8000")
+    try:
+        backend_port = int(raw_port)
+    except ValueError as exc:
+        raise RuntimeError("BACKEND_PORT phải là một số nguyên.") from exc
+    if not 1 <= backend_port <= 65_535:
+        raise RuntimeError("BACKEND_PORT phải nằm trong khoảng 1 đến 65535.")
+
+    backend_host = os.getenv("BACKEND_HOST", "127.0.0.1").strip()
+    if not backend_host:
+        raise RuntimeError("BACKEND_HOST không được để trống.")
+    return BackendSettings(
+        database_path=Path(os.getenv("DATABASE_PATH", "data/hr_chatbot.db")),
+        uploads_directory=Path(os.getenv("UPLOADS_DIRECTORY", "data/uploads")),
+        allowed_origins=tuple(
+            origin.strip()
+            for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+            if origin.strip()
+        ),
+        backend_host=backend_host,
+        backend_port=backend_port,
+        backend_public_url=os.getenv(
+            "BACKEND_PUBLIC_URL", f"http://{backend_host}:{backend_port}"
+        ).rstrip("/"),
+    )
 
 
 def get_settings() -> Settings:
     """Load runtime configuration without ever printing the API key."""
-    load_dotenv()
+    backend = get_backend_settings()
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key or api_key == "replace_me":
         raise RuntimeError(
@@ -23,5 +67,7 @@ def get_settings() -> Settings:
     return Settings(
         gemini_api_key=api_key,
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+        database_path=backend.database_path,
+        uploads_directory=backend.uploads_directory,
+        allowed_origins=backend.allowed_origins,
     )
-

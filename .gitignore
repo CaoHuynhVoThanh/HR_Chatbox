@@ -8,3 +8,7 @@ venv/
 # Secrets and local CVs
 .env
 data/cv/
+data/uploads/
+data/*.db
+data/*.db-shm
+data/*.db-wal
