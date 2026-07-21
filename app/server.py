@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.core.chat_service import CVChatService
@@ -21,9 +19,8 @@ from app.core.config import get_backend_settings, get_settings
 from app.core.cv_extractor import CVDocument, CVExtractionError, SUPPORTED_EXTENSIONS, extract_cv
 
 backend_settings = get_backend_settings()
-MAX_UPLOAD_BYTES = 3 * 1024 * 1024
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_CV_TEXT_CHARS = 100_000
-STATIC_DIRECTORY = Path(__file__).parent / "static"
 
 app = FastAPI(
     title="HR CV Chatbot API",
@@ -50,11 +47,6 @@ class ChatRequest(BaseModel):
     history: list[HistoryTurn] = Field(default_factory=list, max_length=20)
 
 
-@app.get("/", include_in_schema=False)
-def web_client() -> FileResponse:
-    return FileResponse(STATIC_DIRECTORY / "index.html")
-
-
 @app.get("/health")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok", "storage": "browser-session"}
@@ -75,7 +67,7 @@ async def extract_uploaded_cv(
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
-            detail="CV vượt quá 3 MB để phù hợp giới hạn sessionStorage của trình duyệt.",
+            detail="CV vượt quá giới hạn 5 MB của phiên trình duyệt.",
         )
 
     temporary_path: Path | None = None

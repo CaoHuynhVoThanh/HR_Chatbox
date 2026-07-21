@@ -12,3 +12,7 @@ class AgentOrchestratorTests(unittest.TestCase):
     def test_report_request_produces_report_intent(self) -> None:
         brief = AgentOrchestrator().build_brief("Tạo báo cáo tổng kết CV")
         self.assertIn("final_report", brief.instructions)
+
+    def test_twenty_question_request_generates_a_question_set_instruction(self) -> None:
+        brief = AgentOrchestrator().build_brief("Hãy tạo đúng 20 câu hỏi phỏng vấn cho tôi")
+        self.assertIn("đúng 20 câu hỏi", brief.instructions)

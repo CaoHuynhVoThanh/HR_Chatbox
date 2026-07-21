@@ -22,8 +22,13 @@ class InterviewPlanner:
 
 
 class QuestionGenerator:
-    def instruction(self, intent: str) -> str:
+    def instruction(self, intent: str, user_message: str) -> str:
         if intent == "generate_questions":
+            if "20" in user_message:
+                return (
+                    "Tạo đúng 20 câu hỏi phỏng vấn, nhóm theo chủ đề và bám sát kinh nghiệm trong CV. "
+                    "Không hỏi thêm câu làm rõ."
+                )
             return "Đặt đúng 1 câu hỏi phỏng vấn mở đầu, có thể kèm lý do ngắn. Chờ câu trả lời trước khi hỏi tiếp."
         return "Khi cần thông tin, chỉ hỏi 1 câu hỏi tiếp theo rõ ràng và có mục đích."
 
@@ -64,10 +69,9 @@ class AgentOrchestrator:
         parts = [
             f"Intent hiện tại: {plan.intent}.",
             f"1. Interview Planner: {plan.instructions}",
-            f"2. Question Generator: {self.question_generator.instruction(plan.intent)}",
+            f"2. Question Generator: {self.question_generator.instruction(plan.intent, user_message)}",
             f"3. Answer Evaluator: {self.answer_evaluator.instruction(plan.intent)}",
             f"4. Next-action Decider: {self.next_action_decider.instruction(plan.intent)}",
             f"5. Final Report Generator: {self.final_report_generator.instruction(plan.intent)}",
         ]
         return AgentBrief(intent=plan.intent, instructions="\n".join(parts))
-

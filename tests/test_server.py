@@ -25,7 +25,6 @@ class ServerSessionTests(unittest.TestCase):
 
     def test_extract_cv_without_persisting_user_data(self) -> None:
         self.assertEqual(self.client.get("/health").json()["storage"], "browser-session")
-        self.assertIn("sessionStorage", self.client.get("/").text)
         upload = self.client.post(
             "/api/cv/extract",
             files={
