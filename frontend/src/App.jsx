@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import docxIcon from './images/docx_icon.svg.webp'
+import pdfIcon from './images/337946.png'
 
 const SESSION_KEY = 'hr-cv-coach-react-session-v1'
 const SESSION_NOTICE_KEY = 'hr-cv-coach-session-notice-acknowledged'
@@ -25,7 +27,7 @@ const quickActions = [
 ]
 
 function emptySession() {
-  return { fileName: '', fileData: '', cvText: '', messages: [] }
+  return { cvs: [], activeCvIndex: 0, messages: [] }
 }
 
 function loadSession() {
@@ -33,7 +35,7 @@ function loadSession() {
     const saved = sessionStorage.getItem(SESSION_KEY)
     if (!saved) return emptySession()
     const value = JSON.parse(saved)
-    if (!Array.isArray(value.messages)) return emptySession()
+    if (!Array.isArray(value.messages) || !Array.isArray(value.cvs)) return emptySession()
     return { ...emptySession(), ...value }
   } catch {
     sessionStorage.removeItem(SESSION_KEY)
@@ -48,6 +50,12 @@ function fileToDataUrl(file) {
     reader.onload = () => resolve(reader.result)
     reader.readAsDataURL(file)
   })
+}
+
+function fileTypeIcon(fileName) {
+  const extension = fileName.split('.').pop()?.toLowerCase()
+  if (extension === 'docx') return docxIcon
+  return pdfIcon
 }
 
 function toHistory(messages) {
@@ -75,7 +83,8 @@ function App() {
   const fileInputRef = useRef(null)
   const messagesRef = useRef(null)
 
-  const hasCv = Boolean(session.cvText)
+  const activeCv = session.cvs[session.activeCvIndex]
+  const hasCv = Boolean(activeCv)
   const api = useMemo(() => `${API_BASE_URL}/api`, [])
 
   useEffect(() => {
@@ -112,8 +121,15 @@ function App() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.detail || 'Không thể xử lý CV.')
 
-      // A new CV deliberately replaces the old file and its chat context.
-      setSession({ fileName: result.filename, fileData, cvText: result.text, messages: [] })
+      setSession((current) => ({
+        ...current,
+        cvs: [
+          ...current.cvs,
+          { fileName: result.filename, fileData, cvText: result.text },
+        ],
+        activeCvIndex: current.cvs.length === 0 ? 0 : current.activeCvIndex,
+        messages: [],
+      }))
     } catch (requestError) {
       setError(requestError.message || 'Không thể tải CV.')
     } finally {
@@ -125,6 +141,31 @@ function App() {
     const file = event.target.files?.[0]
     event.target.value = ''
     processCvFile(file)
+  }
+
+  function selectActiveCv(index) {
+    if (index === session.activeCvIndex) return
+    setSession((current) => ({ ...current, activeCvIndex: index, messages: [] }))
+  }
+
+  function moveCv(index, direction) {
+    const target = index + direction
+    if (target < 0 || target >= session.cvs.length) return
+
+    setSession((current) => {
+      const cvs = [...current.cvs]
+      const [moved] = cvs.splice(index, 1)
+      cvs.splice(target, 0, moved)
+      let activeCvIndex = current.activeCvIndex
+      if (index === activeCvIndex) {
+        activeCvIndex = target
+      } else if (index < activeCvIndex && target >= activeCvIndex) {
+        activeCvIndex -= 1
+      } else if (index > activeCvIndex && target <= activeCvIndex) {
+        activeCvIndex += 1
+      }
+      return { ...current, cvs, activeCvIndex }
+    })
   }
 
   function handleDragOver(event) {
@@ -160,7 +201,7 @@ function App() {
       const response = await fetch(`${api}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cv_text: session.cvText, history, content: text }),
+        body: JSON.stringify({ cv_text: activeCv.cvText, history, content: text }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.detail || 'Không thể nhận phản hồi từ AI.')
@@ -180,6 +221,15 @@ function App() {
     setSession(emptySession())
     setDraft('')
     setError('')
+  }
+
+  function removeCv(index) {
+    setSession((current) => {
+      const cvs = [...current.cvs]
+      cvs.splice(index, 1)
+      const activeCvIndex = Math.min(current.activeCvIndex, cvs.length - 1)
+      return { ...current, cvs, activeCvIndex: activeCvIndex < 0 ? 0 : activeCvIndex, messages: cvs.length ? current.messages : [] }
+    })
   }
 
   function acknowledgePrivacyNotice() {
@@ -243,10 +293,37 @@ function App() {
             >
               <input ref={fileInputRef} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileChange} disabled={uploading} />
               <span className="upload-glyph">{uploading ? '◌' : '＋'}</span>
-              <strong>{uploading ? 'Đang xử lý tài liệu…' : isDragging ? 'Thả CV vào đây' : hasCv ? 'Kéo thả để thay CV hiện tại' : 'Kéo thả CV vào đây'}</strong>
+              <strong>{uploading ? 'Đang xử lý tài liệu…' : isDragging ? 'Thả CV vào đây' : hasCv ? 'Kéo thả để thêm CV mới' : 'Kéo thả CV vào đây'}</strong>
               <small>hoặc bấm để chọn · PDF/DOCX · tối đa 5 MB</small>
             </label>
-            {hasCv && <div className="file-chip"><span>PDF</span><p title={session.fileName}>{session.fileName}</p><button type="button" onClick={() => fileInputRef.current?.click()}>Thay</button></div>}
+            {session.cvs.length > 1 && (
+              <div className="cv-list">
+                <div className="cv-list-header">
+                  <p className="cv-list-title">Nhấp vào CV để chọn làm chính</p>
+                </div>
+                {session.cvs.map((cv, index) => (
+                  <div
+                    className={`cv-item ${index === session.activeCvIndex ? 'active' : ''}`}
+                    key={`${cv.fileName}-${index}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => selectActiveCv(index)}
+                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') selectActiveCv(index) }}
+                  >
+                    <div className="cv-name-wrapper">
+                      <img src={fileTypeIcon(cv.fileName)} alt="CV type" className="cv-icon" />
+                      <span title={cv.fileName}>{cv.fileName}</span>
+                    </div>
+                    <div className="cv-actions">
+                      {index === session.activeCvIndex && (
+                        <span className="cv-active-label">CV đang dùng</span>
+                      )}
+                      <button className="cv-remove-button" type="button" onClick={(event) => { event.stopPropagation(); removeCv(index) }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="actions-card">
