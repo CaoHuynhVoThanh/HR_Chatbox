@@ -8,6 +8,31 @@ from pypdf import PdfReader
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx"}
 
+ICON_MAP = {
+    "\uf095": "Phone:",
+    "\uf0e0": "Email:",
+    "\uf015": "Address:",
+    "\uf005": "★",
+    "\uf0ac": "Website:",
+    "\uf09b": "GitHub:",
+    "\uf08c": "LinkedIn:",
+    "\uf007": "Name:",
+    "\uf0b1": "Work:",
+    "\uf19d": "Education:",
+    "\uf133": "Date:",
+    "\uf041": "Location:",
+    "\uf0c0": "Team:",
+    "\uf0ae": "Skills:",
+    "\uf0c3": "Phone:",
+}
+
+
+def normalize_cv_text(text: str) -> str:
+    normalized = text
+    for unicode_char, replacement in ICON_MAP.items():
+        normalized = normalized.replace(unicode_char, replacement)
+    return normalized
+
 
 class CVExtractionError(ValueError):
     """Raised when a CV cannot be selected or converted into text."""
@@ -66,5 +91,5 @@ def extract_cv(path: str | Path) -> CVDocument:
         raise CVExtractionError(
             "Không trích xuất được chữ từ CV. Với PDF scan, cần bổ sung OCR ở giai đoạn sau."
         )
-    return CVDocument(path=cv_path, text=text)
+    return CVDocument(path=cv_path, text=normalize_cv_text(text))
 

@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 import app.server as server
 
 
-def docx_bytes() -> bytes:
+def docx_bytes(text: str = "Le Thi B - Backend Developer") -> bytes:
     document = Document()
-    document.add_paragraph("Le Thi B - Backend Developer")
+    document.add_paragraph(text)
     buffer = io.BytesIO()
     document.save(buffer)
     return buffer.getvalue()
@@ -38,3 +38,19 @@ class ServerSessionTests(unittest.TestCase):
         self.assertEqual(upload.status_code, 200)
         self.assertEqual(upload.json()["filename"], "candidate.docx")
         self.assertIn("Backend Developer", upload.json()["text"])
+
+    def test_extract_cv_unicode_icon_mapping(self) -> None:
+        upload = self.client.post(
+            "/api/cv/extract",
+            files={
+                "file": (
+                    "candidate.docx",
+                    docx_bytes("\uf095 0123456789"),
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+        )
+        self.assertEqual(upload.status_code, 200)
+        self.assertEqual(upload.json()["filename"], "candidate.docx")
+        self.assertIn("Phone:", upload.json()["text"])
+        self.assertNotIn("\uf095", upload.json()["text"])
