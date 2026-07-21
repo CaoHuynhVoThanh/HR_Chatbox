@@ -17,6 +17,9 @@ button { border: 0; }
 .side-panel { display: grid; grid-template-rows: 1fr 1.12fr; gap: 20px; min-height: 660px; min-width: 0; max-width: 100%; }.upload-card, .actions-card { border-radius: 14px; padding: 22px; min-width: 0; max-width: 100%; width: 100%; }.card-title { display: flex; align-items: center; gap: 10px; min-width: 0; }.card-icon { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; background: rgba(81, 211, 246, .12); color: #62dbf9; }.card-title h2 { margin: 0; color: #eaf6ff; font-size: 16px; letter-spacing: -.03em; }.card-title .eyebrow { margin-bottom: 3px; font-size: 9px; }.drop-zone { display: flex; min-height: 152px; margin-top: 20px; align-items: center; justify-content: center; flex-direction: column; border: 1px dashed rgba(117, 206, 239, .38); border-radius: 11px; background: rgba(2, 21, 42, .38); text-align: center; cursor: pointer; transition: .2s; word-break: break-word; }.drop-zone:hover { border-color: #57d6f4; background: rgba(26, 105, 139, .12); }.drop-zone.busy { pointer-events: none; opacity: .7; }.drop-zone input { display: none; }.upload-glyph { margin-bottom: 6px; color: #5de2fc; font-size: 28px; }.drop-zone strong { font-size: 12px; }.drop-zone small { margin-top: 6px; color: #7897b5; font-size: 10px; }.file-chip { display: none; }
 .file-type-icon { width: 18px; height: 18px; object-fit: contain; }
 .cv-list { display: grid; gap: 10px; margin-top: 16px; }
+.merge-list { display: grid; gap: 8px; margin-top: 8px; }
+.merge-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: rgba(6,18,30,.16); }
+.merge-item.disabled { opacity: 0.5; }
 .cv-list-header { padding: 0 6px; }
 .cv-list-title { margin: 0; color: #8fcfff; font-size: 12px; letter-spacing: .02em; text-transform: uppercase; }
 .cv-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px; border-radius: 12px; background: rgba(4, 26, 47, .72); border: 1px solid transparent; min-width: 0; max-width: 100%; }
@@ -71,6 +74,8 @@ button { border: 0; }
 .bubble h1 { font-size: 24px; }.bubble h2 { font-size: 21px; }.bubble h3 { font-size: 18px; }.bubble h4 { font-size: 16px; }
 .bubble ul, .bubble ol { margin: 9px 0; padding-left: 22px; }.bubble li { margin: 5px 0; line-height: 1.55; }
 .bubble strong { color: #8eeaff; font-weight: 800; }.bubble code { padding: 2px 5px; border-radius: 4px; color: #a5eeff; background: rgba(2, 18, 35, .56); font: 13px 'DM Mono', monospace; }
+.download-button { display: inline-flex; align-items: center; gap: 7px; margin-top: 13px; padding: 10px 13px; border: 1px solid rgba(102, 222, 249, .62); border-radius: 8px; color: #062039; background: #72e2f9; box-shadow: 0 7px 18px rgba(59, 201, 237, .2); font-size: 13px; font-weight: 800; text-decoration: none; }
+.download-button:hover { background: #a4efff; }
 
 @media (min-width: 901px) { .chat-panel { height: calc(100vh - 118px); max-height: calc(100vh - 118px); } }
 .conversation { min-height: 0; }

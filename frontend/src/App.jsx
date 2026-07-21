@@ -24,6 +24,11 @@ const quickActions = [
     description: 'Bộ câu hỏi theo CV',
     prompt: 'Hãy tạo bộ đúng 20 câu hỏi phỏng vấn dựa trên CV của tôi, nhóm theo chủ đề và độ khó.',
   },
+  {
+    label: 'Hợp nhất CV',
+    description: 'So sánh & tổng hợp 2 CV',
+    prompt: '__MERGE__',
+  },
 ]
 
 function emptySession() {
@@ -77,6 +82,8 @@ function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [mergeTarget, setMergeTarget] = useState(null)
+  const [mergeInProgress, setMergeInProgress] = useState(false)
   const [showPrivacyNotice, setShowPrivacyNotice] = useState(
     () => sessionStorage.getItem(SESSION_NOTICE_KEY) !== 'true',
   )
@@ -125,7 +132,7 @@ function App() {
         ...current,
         cvs: [
           ...current.cvs,
-          { fileName: result.filename, fileData, cvText: result.text },
+          { fileName: result.filename, fileData, cvText: result.text, mimeType: file.type },
         ],
         activeCvIndex: current.cvs.length === 0 ? 0 : current.activeCvIndex,
         messages: [],
@@ -216,6 +223,73 @@ function App() {
     }
   }
 
+  function startMergeFlow() {
+    if (session.cvs.length < 2) {
+      setError('Cần ít nhất 2 CV để hợp nhất.')
+      return
+    }
+    // insert a special assistant message that will render merge UI
+    setSession((current) => ({ ...current, messages: [...current.messages, { role: 'assistant', content: '__MERGE_INIT__' }] }))
+    setMergeTarget(null)
+  }
+
+  async function confirmMerge() {
+    if (mergeTarget === null) {
+      setError('Vui lòng chọn CV để hợp nhất với CV chính.')
+      return
+    }
+    setMergeInProgress(true)
+    setError('')
+    try {
+      const primary = activeCv.cvText
+      const secondaryCv = session.cvs[mergeTarget]
+      const secondary = secondaryCv.cvText
+      const response = await fetch(`${api}/cv/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          primary_cv_text: primary,
+          secondary_cv_text: secondary,
+          primary_filename: activeCv.fileName,
+          secondary_filename: secondaryCv.fileName,
+        }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.detail || 'Không thể hợp nhất CV.')
+
+      // append assistant markdown
+      setSession((current) => ({ ...current, messages: [...current.messages, { role: 'assistant', content: result.markdown }] }))
+
+      // prepare PDF download link from base64
+      if (result.pdf_base64) {
+        const bytes = Uint8Array.from(atob(result.pdf_base64), c => c.charCodeAt(0))
+        const blob = new Blob([bytes], { type: 'application/pdf' })
+        const url = URL.createObjectURL(blob)
+        setSession((current) => ({
+          ...current,
+          messages: [
+            ...current.messages,
+            {
+              role: 'assistant',
+              content: 'CV theo mẫu Harvard đã sẵn sàng để tải về.',
+              downloadUrl: url,
+              downloadName: 'cv-harvard.pdf',
+            },
+          ],
+        }))
+      }
+    } catch {
+      const message = 'Chatbot chưa thể hợp nhất CV. Vui lòng thử lại trong giây lát.'
+      setError(message)
+      setSession((current) => ({
+        ...current,
+        messages: [...current.messages, { role: 'assistant', content: message }],
+      }))
+    } finally {
+      setMergeInProgress(false)
+    }
+  }
+
   function clearSession() {
     sessionStorage.removeItem(SESSION_KEY)
     setSession(emptySession())
@@ -227,9 +301,17 @@ function App() {
     setSession((current) => {
       const cvs = [...current.cvs]
       cvs.splice(index, 1)
-      const activeCvIndex = Math.min(current.activeCvIndex, cvs.length - 1)
-      return { ...current, cvs, activeCvIndex: activeCvIndex < 0 ? 0 : activeCvIndex, messages: cvs.length ? current.messages : [] }
+      let activeCvIndex = current.activeCvIndex
+      if (!cvs.length) {
+        activeCvIndex = 0
+      } else if (index < current.activeCvIndex) {
+        activeCvIndex -= 1
+      } else if (index === current.activeCvIndex) {
+        activeCvIndex = Math.min(index, cvs.length - 1)
+      }
+      return { ...current, cvs, activeCvIndex, messages: [] }
     })
+    setMergeTarget(null)
   }
 
   function acknowledgePrivacyNotice() {
@@ -266,13 +348,60 @@ function App() {
                 <p>{hasCv ? 'Chọn một tác vụ bên phải hoặc đặt câu hỏi riêng.' : 'Dữ liệu chỉ nằm trong tab trình duyệt này.'}</p>
               </div>
             )}
-            {session.messages.map((message, index) => (
-              <article className={`bubble ${message.role}`} key={`${message.role}-${index}`}>
-                <span className="bubble-label">{message.role === 'user' ? 'BẠN' : 'CV INTELLIGENCE'}</span>
-                <ReactMarkdown>{message.content}</ReactMarkdown>
-              </article>
-            ))}
+            {session.messages.map((message, index) => {
+              if (message.content === '__MERGE_INIT__') {
+                return (
+                  <article className={`bubble ${message.role}`} key={`merge-${index}`}>
+                    <span className="bubble-label">CV INTELLIGENCE</span>
+                    <div>
+                      <p>Chọn 1 CV khác để hợp nhất với CV chính:</p>
+                      <div className="merge-list">
+                        {session.cvs.map((cv, i) => (
+                          <label key={`${cv.fileName}-${i}`} className={`merge-item ${i === session.activeCvIndex ? 'disabled' : ''}`}>
+                            <input
+                              type="radio"
+                              name="merge-target"
+                              disabled={i === session.activeCvIndex}
+                              checked={mergeTarget === i}
+                              onChange={() => setMergeTarget(i)}
+                            />
+                            <img src={fileTypeIcon(cv.fileName)} alt="type" className="cv-icon" />
+                            <span title={cv.fileName}>{cv.fileName}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: 8 }}>
+                        <button className="text-button" type="button" onClick={confirmMerge} disabled={mergeInProgress}>Hợp nhất</button>
+                        <button className="text-button" type="button" onClick={() => {
+                          // remove the merge-init message
+                          setSession((current) => ({ ...current, messages: current.messages.filter((_, j) => j !== index) }))
+                          setMergeTarget(null)
+                        }} style={{ marginLeft: 8 }}>Hủy</button>
+                      </div>
+                    </div>
+                  </article>
+                )
+              }
+              if (message.downloadUrl) {
+                return (
+                  <article className={`bubble ${message.role}`} key={`download-${index}`}>
+                    <span className="bubble-label">CV INTELLIGENCE</span>
+                    <p>{message.content}</p>
+                    <a className="download-button" href={message.downloadUrl} download={message.downloadName || 'cv-harvard.pdf'}>
+                      ↓ Tải CV Harvard
+                    </a>
+                  </article>
+                )
+              }
+              return (
+                <article className={`bubble ${message.role}`} key={`${message.role}-${index}`}>
+                  <span className="bubble-label">{message.role === 'user' ? 'BẠN' : 'CV INTELLIGENCE'}</span>
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                </article>
+              )
+            })}
             {sending && <div className="thinking"><span /><span /><span /> AI đang phân tích CV</div>}
+            {mergeInProgress && <div className="thinking"><span /><span /><span /> Đang hợp nhất CV…</div>}
           </div>
 
           <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(draft) }}>
@@ -296,7 +425,7 @@ function App() {
               <strong>{uploading ? 'Đang xử lý tài liệu…' : isDragging ? 'Thả CV vào đây' : hasCv ? 'Kéo thả để thêm CV mới' : 'Kéo thả CV vào đây'}</strong>
               <small>hoặc bấm để chọn · PDF/DOCX · tối đa 5 MB</small>
             </label>
-            {session.cvs.length > 1 && (
+            {session.cvs.length > 0 && (
               <div className="cv-list">
                 <div className="cv-list-header">
                   <p className="cv-list-title">Nhấp vào CV để chọn làm chính</p>
@@ -330,7 +459,10 @@ function App() {
             <div className="card-title"><span className="card-icon">⌁</span><div><p className="eyebrow">AI ACTIONS</p><h2>Các chức năng nhanh</h2></div></div>
             <div className="action-list">
               {quickActions.map((action, index) => (
-                <button className="action-button" key={action.label} type="button" disabled={!hasCv || sending} onClick={() => sendMessage(action.prompt)}>
+                <button className="action-button" key={action.label} type="button" disabled={!hasCv || sending} onClick={() => {
+                  if (action.prompt === '__MERGE__') return startMergeFlow()
+                  return sendMessage(action.prompt)
+                }}>
                   <span className="action-index">0{index + 1}</span>
                   <span><strong>{action.label}</strong><small>{action.description}</small></span>
                   <b>→</b>

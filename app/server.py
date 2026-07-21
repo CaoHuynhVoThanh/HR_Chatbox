@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field
 from app.core.chat_service import CVChatService
 from app.core.config import get_backend_settings, get_settings
 from app.core.cv_extractor import CVDocument, CVExtractionError, SUPPORTED_EXTENSIONS, extract_cv
+from app.core.harvard_cv import harvard_cv_to_markdown, render_harvard_cv_pdf
+import base64
 
 backend_settings = get_backend_settings()
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -45,6 +47,14 @@ class ChatRequest(BaseModel):
     cv_text: str = Field(min_length=1, max_length=MAX_CV_TEXT_CHARS)
     content: str = Field(min_length=1, max_length=12_000)
     history: list[HistoryTurn] = Field(default_factory=list, max_length=20)
+
+
+class MergeRequest(BaseModel):
+    primary_cv_text: str = Field(min_length=1, max_length=MAX_CV_TEXT_CHARS)
+    secondary_cv_text: str = Field(min_length=1, max_length=MAX_CV_TEXT_CHARS)
+    primary_filename: str = Field(min_length=1, max_length=255)
+    secondary_filename: str = Field(min_length=1, max_length=255)
+    job_context: str | None = None
 
 
 @app.get("/health")
@@ -105,3 +115,35 @@ def chat(request: ChatRequest) -> dict[str, str]:
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Gemini không thể tạo phản hồi. Hãy thử lại sau.") from exc
     return {"assistant": answer}
+
+
+@app.post("/api/cv/merge", status_code=status.HTTP_200_OK)
+def merge_cvs(request: MergeRequest) -> dict[str, str]:
+    """Merge two CV texts into a final recruiter-ready CV.
+
+    Returns both the final CV in Markdown and a PDF (base64) generated from it.
+    """
+    if not request.primary_cv_text or not request.secondary_cv_text:
+        raise HTTPException(status_code=422, detail="Cả hai CV phải có nội dung.")
+    try:
+        service = CVChatService(
+            settings=get_settings(),
+            cv=CVDocument(path=Path("browser-session-cv"), text=request.primary_cv_text),
+        )
+        harvard_cv = service.merge_cvs_harvard(
+            request.primary_cv_text,
+            request.secondary_cv_text,
+            request.primary_filename,
+            request.secondary_filename,
+            request.job_context,
+        )
+        md = harvard_cv_to_markdown(harvard_cv)
+        pdf_bytes = render_harvard_cv_pdf(harvard_cv)
+        pdf_b64 = base64.b64encode(pdf_bytes).decode('ascii')
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Chatbot chưa thể hợp nhất CV. Vui lòng thử lại trong giây lát.",
+        ) from exc
+
+    return {"markdown": md, "pdf_base64": pdf_b64, "template": "harvard"}

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from docx import Document
+import pymupdf
 from pypdf import PdfReader
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx"}
@@ -32,6 +33,61 @@ def normalize_cv_text(text: str) -> str:
     for unicode_char, replacement in ICON_MAP.items():
         normalized = normalized.replace(unicode_char, replacement)
     return normalized
+
+
+def _extract_pdf_with_pypdf(path: Path) -> str:
+    return "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
+
+
+def _extract_pdf_with_pymupdf(path: Path) -> str:
+    """Use PyMuPDF as a second text-extraction engine for PDF font encodings."""
+    with pymupdf.open(path) as document:
+        return "\n".join(page.get_text("text", sort=True) for page in document)
+
+
+def _pdf_text_quality(text: str) -> tuple[float, int]:
+    """Return a score where lower replacement-character rate is better."""
+    visible_characters = sum(not char.isspace() for char in text)
+    unreadable_characters = sum(char in {"\u25a0", "\ufffd", "\x00"} for char in text)
+    return (unreadable_characters / max(visible_characters, 1), -visible_characters)
+
+
+def _has_unrecoverable_pdf_text(text: str) -> bool:
+    """Detect the common missing-ToUnicode symptom without rejecting normal bullets."""
+    unreadable_characters = sum(char in {"\u25a0", "\ufffd", "\x00"} for char in text)
+    visible_characters = sum(not char.isspace() for char in text)
+    return unreadable_characters >= 4 and unreadable_characters / max(visible_characters, 1) >= 0.01
+
+
+def _extract_pdf_text(path: Path) -> str:
+    """Choose the cleanest result from two native PDF text extractors.
+
+    Neither extractor can recreate letters that were never mapped to Unicode in
+    the PDF. In that case, fail explicitly so corrupted CV content is never sent
+    to Gemini as if it were valid Vietnamese text.
+    """
+    candidates: list[str] = []
+    errors: list[Exception] = []
+    for extractor in (_extract_pdf_with_pypdf, _extract_pdf_with_pymupdf):
+        try:
+            extracted = extractor(path).strip()
+            if extracted:
+                candidates.append(extracted)
+        except Exception as exc:
+            errors.append(exc)
+
+    if not candidates:
+        if errors:
+            raise errors[0]
+        return ""
+
+    text = min(candidates, key=_pdf_text_quality)
+    if _has_unrecoverable_pdf_text(text):
+        raise CVExtractionError(
+            "PDF dùng font không ánh xạ được Unicode nên văn bản tiếng Việt bị lỗi. "
+            "Hãy tải CV .docx hoặc xuất lại PDF có thể chọn/copy được chữ; PDF scan cần OCR."
+        )
+    return text
 
 
 class CVExtractionError(ValueError):
@@ -77,7 +133,7 @@ def extract_cv(path: str | Path) -> CVDocument:
 
     try:
         if extension == ".pdf":
-            text = "\n".join(page.extract_text() or "" for page in PdfReader(str(cv_path)).pages)
+            text = _extract_pdf_text(cv_path)
         else:
             document = Document(str(cv_path))
             paragraphs = [paragraph.text for paragraph in document.paragraphs]
@@ -92,4 +148,3 @@ def extract_cv(path: str | Path) -> CVDocument:
             "Không trích xuất được chữ từ CV. Với PDF scan, cần bổ sung OCR ở giai đoạn sau."
         )
     return CVDocument(path=cv_path, text=normalize_cv_text(text))
-

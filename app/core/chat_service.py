@@ -3,12 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.core.agents import AgentOrchestrator
 from app.core.config import Settings
 from app.core.cv_extractor import CVDocument
+from app.core.harvard_cv import parse_harvard_cv_json
 
 MAX_CV_CONTEXT_CHARS = 24_000
 
@@ -39,6 +41,7 @@ class CVChatService:
         history: list[tuple[str, str]] | None = None,
     ) -> None:
         self.session = ChatSession(cv=cv, history=history or [])
+        self.settings = settings
         self.orchestrator = AgentOrchestrator()
         model = ChatGoogleGenerativeAI(
             model=settings.gemini_model,
@@ -74,3 +77,58 @@ class CVChatService:
         ).strip()
         self.session.history.append((text, response))
         return response
+
+    def merge_cvs_harvard(
+        self,
+        primary_text: str,
+        secondary_text: str,
+        primary_filename: str,
+        secondary_filename: str,
+        job_context: str | None = None,
+    ) -> dict:
+        """Create factual data for the fixed Harvard-style CV template."""
+        system = (
+            "Bạn là chuyên gia viết CV. Hãy hợp nhất hai CV thành dữ liệu cho CV một cột theo phong cách Harvard. "
+            "Chỉ dùng dữ kiện xuất hiện trong hai CV; không bịa số liệu, thời gian, kỹ năng hay thành tích. "
+            "Khi thiếu dữ liệu, dùng chuỗi rỗng \"\" cho trường đơn và [] cho danh sách; không suy đoán hoặc ghi chú thích. "
+            "Khi hai CV mâu thuẫn, dùng diễn đạt trung tính hoặc để trống trường mâu thuẫn. "
+            "Viết TOÀN BỘ giá trị văn bản trong JSON bằng tiếng Anh chuyên nghiệp, kể cả khi CV nguồn bằng tiếng Việt; "
+            "giữ nguyên tên riêng, tên tổ chức, URL, email, số điện thoại, tên công nghệ và các dữ kiện không nên dịch. "
+            "Trả về DUY NHẤT JSON hợp lệ, không Markdown/code fence, theo schema chính xác: "
+            "{\"full_name\":\"\",\"headline\":\"\",\"contact\":{\"phone\":\"\",\"email\":\"\",\"location\":\"\",\"linkedin\":\"\",\"website\":\"\"},"
+            "\"summary\":\"\",\"experience\":[{\"title\":\"\",\"organization\":\"\",\"location\":\"\",\"dates\":\"\",\"bullets\":[]}],"
+            "\"education\":[{\"degree\":\"\",\"institution\":\"\",\"location\":\"\",\"dates\":\"\",\"details\":\"\"}],"
+            "\"projects\":[{\"name\":\"\",\"dates\":\"\",\"details\":\"\",\"bullets\":[]}],"
+            "\"skills\":[],\"certifications\":[],\"additional\":[]}. Không bỏ khóa nào."
+        )
+        if job_context:
+            system += f"CV hướng tới vị trí: {job_context}. Hãy ưu tiên thông tin phù hợp với vị trí này."
+
+        prompt = (
+            f"TỆP CV: {primary_filename}\n{primary_text[:MAX_CV_CONTEXT_CHARS]}\n\n"
+            f"TỆP CV: {secondary_filename}\n{secondary_text[:MAX_CV_CONTEXT_CHARS]}\n\n"
+            "Hãy chuẩn hoá hai nguồn trên vào JSON Harvard đã yêu cầu."
+        )
+
+        model = ChatGoogleGenerativeAI(
+            model=self.settings.gemini_model,
+            google_api_key=self.settings.gemini_api_key,
+            temperature=0.2,
+        )
+        response = model.invoke(
+            [
+                SystemMessage(content=system),
+                HumanMessage(content=prompt),
+            ]
+        )
+        content = response.content
+        if isinstance(content, str):
+            md = content.strip()
+        else:
+            md = "".join(
+                part if isinstance(part, str) else str(part.get("text", ""))
+                for part in content
+            ).strip()
+        if not md:
+            raise RuntimeError("Gemini không trả về nội dung tổng hợp CV.")
+        return parse_harvard_cv_json(md)

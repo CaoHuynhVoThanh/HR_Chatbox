@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from docx import Document
 
@@ -30,3 +31,28 @@ class CVExtractorTests(unittest.TestCase):
             with self.assertRaises(CVExtractionError):
                 resolve_cv_path(None, directory)
 
+    @patch("app.core.cv_extractor._extract_pdf_with_pymupdf")
+    @patch("app.core.cv_extractor._extract_pdf_with_pypdf")
+    def test_pdf_uses_cleaner_fallback_extractor(self, pypdf_extract, pymupdf_extract) -> None:
+        pypdf_extract.return_value = "CAO HU\u25a0NH V\u00d5 THANH"
+        pymupdf_extract.return_value = "CAO HU\u1ef2NH V\u00d5 THANH"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cv_path = Path(tmp_dir) / "candidate.pdf"
+            cv_path.touch()
+            result = extract_cv(cv_path)
+
+        self.assertEqual(result.text, "CAO HU\u1ef2NH V\u00d5 THANH")
+
+    @patch("app.core.cv_extractor._extract_pdf_with_pymupdf")
+    @patch("app.core.cv_extractor._extract_pdf_with_pypdf")
+    def test_pdf_with_unmapped_unicode_fails_clearly(self, pypdf_extract, pymupdf_extract) -> None:
+        corrupted_text = "Cao Hu\u25a0nh V\u25a0 Thanh " + ("\u25a0" * 20)
+        pypdf_extract.return_value = corrupted_text
+        pymupdf_extract.return_value = corrupted_text
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cv_path = Path(tmp_dir) / "candidate.pdf"
+            cv_path.touch()
+            with self.assertRaisesRegex(CVExtractionError, "không ánh xạ được Unicode"):
+                extract_cv(cv_path)

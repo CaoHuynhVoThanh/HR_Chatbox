@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ full_name }}</title>
+    <style>
+      @page { size: A4; margin: 16mm 20mm; }
+      body { color: #1c1c1c; font: 10pt Arial, sans-serif; line-height: 1.35; }
+      header { text-align: center; border-bottom: 1.5pt solid #8a2432; padding-bottom: 7pt; }
+      h1 { margin: 0; font-size: 21pt; letter-spacing: .4pt; }
+      .headline, .contact { margin: 3pt 0; }
+      h2 { color: #8a2432; border-bottom: .4pt solid #b8b8b8; font-size: 10.5pt; letter-spacing: .7pt; margin: 15pt 0 5pt; padding-bottom: 2pt; }
+      .item-title { font-weight: 700; margin: 0; }
+      ul { margin: 3pt 0 8pt; padding-left: 15pt; }
+      .blank { min-height: 26pt; }
+    </style>
+  </head>
+  <body>
+    <!-- Canonical Harvard-style layout. The backend fills this same structure
+         with ReportLab so it remains reliable in the current Windows deploy. -->
+    <header><h1>{{ full_name }}</h1><p class="headline">{{ headline }}</p><p class="contact">{{ contact }}</p></header>
+    <section>{{ summary }}</section>
+    <section>{{ experience }}</section>
+    <section>{{ education }}</section>
+    <section>{{ projects }}</section>
+    <section>{{ skills }}</section>
+    <section>{{ certifications_and_additional }}</section>
+  </body>
+</html>
