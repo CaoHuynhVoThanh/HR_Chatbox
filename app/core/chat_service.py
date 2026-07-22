@@ -88,26 +88,32 @@ class CVChatService:
     ) -> dict:
         """Create factual data for the fixed Harvard-style CV template."""
         system = (
-            "Bạn là chuyên gia viết CV. Hãy hợp nhất hai CV thành dữ liệu cho CV một cột theo phong cách Harvard. "
-            "Chỉ dùng dữ kiện xuất hiện trong hai CV; không bịa số liệu, thời gian, kỹ năng hay thành tích. "
+            "Bạn là chuyên gia viết CV. Hãy chuẩn hoá một hoặc hai CV nguồn thành dữ liệu cho CV một cột theo phong cách Harvard. "
+            "Chỉ dùng dữ kiện xuất hiện trong các CV nguồn; không bịa số liệu, thời gian, kỹ năng hay thành tích. "
             "Khi thiếu dữ liệu, dùng chuỗi rỗng \"\" cho trường đơn và [] cho danh sách; không suy đoán hoặc ghi chú thích. "
             "Khi hai CV mâu thuẫn, dùng diễn đạt trung tính hoặc để trống trường mâu thuẫn. "
             "Viết TOÀN BỘ giá trị văn bản trong JSON bằng tiếng Anh chuyên nghiệp, kể cả khi CV nguồn bằng tiếng Việt; "
             "giữ nguyên tên riêng, tên tổ chức, URL, email, số điện thoại, tên công nghệ và các dữ kiện không nên dịch. "
+            "Chỉ giữ thông tin thuộc các phần trong schema; loại bỏ toàn bộ thông tin dư hoặc không phù hợp, không tạo mục Additional Information. "
             "Trả về DUY NHẤT JSON hợp lệ, không Markdown/code fence, theo schema chính xác: "
             "{\"full_name\":\"\",\"headline\":\"\",\"contact\":{\"phone\":\"\",\"email\":\"\",\"location\":\"\",\"linkedin\":\"\",\"website\":\"\"},"
             "\"summary\":\"\",\"experience\":[{\"title\":\"\",\"organization\":\"\",\"location\":\"\",\"dates\":\"\",\"bullets\":[]}],"
             "\"education\":[{\"degree\":\"\",\"institution\":\"\",\"location\":\"\",\"dates\":\"\",\"details\":\"\"}],"
             "\"projects\":[{\"name\":\"\",\"dates\":\"\",\"details\":\"\",\"bullets\":[]}],"
-            "\"skills\":[],\"certifications\":[],\"additional\":[]}. Không bỏ khóa nào."
+            "\"skills\":[],\"certifications\":[]}. Không bỏ khóa nào."
         )
         if job_context:
             system += f"CV hướng tới vị trí: {job_context}. Hãy ưu tiên thông tin phù hợp với vị trí này."
 
+        secondary_source = (
+            f"\n\nTỆP CV: {secondary_filename}\n{secondary_text[:MAX_CV_CONTEXT_CHARS]}"
+            if secondary_text.strip()
+            else ""
+        )
         prompt = (
-            f"TỆP CV: {primary_filename}\n{primary_text[:MAX_CV_CONTEXT_CHARS]}\n\n"
-            f"TỆP CV: {secondary_filename}\n{secondary_text[:MAX_CV_CONTEXT_CHARS]}\n\n"
-            "Hãy chuẩn hoá hai nguồn trên vào JSON Harvard đã yêu cầu."
+            f"TỆP CV: {primary_filename}\n{primary_text[:MAX_CV_CONTEXT_CHARS]}"
+            f"{secondary_source}\n\n"
+            "Hãy chuẩn hoá các nguồn trên vào JSON Harvard đã yêu cầu."
         )
 
         model = ChatGoogleGenerativeAI(
@@ -132,3 +138,18 @@ class CVChatService:
         if not md:
             raise RuntimeError("Gemini không trả về nội dung tổng hợp CV.")
         return parse_harvard_cv_json(md)
+
+    def format_cv_harvard(
+        self,
+        cv_text: str,
+        filename: str,
+        job_context: str | None = None,
+    ) -> dict:
+        """Format one CV into the same fixed Harvard-style data contract."""
+        return self.merge_cvs_harvard(
+            primary_text=cv_text,
+            secondary_text="",
+            primary_filename=filename,
+            secondary_filename="",
+            job_context=job_context,
+        )

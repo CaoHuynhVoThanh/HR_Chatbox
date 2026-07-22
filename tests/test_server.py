@@ -29,7 +29,6 @@ def harvard_data() -> dict:
         "projects": [],
         "skills": ["Python", "FastAPI"],
         "certifications": [],
-        "additional": [],
     }
 
 
@@ -84,6 +83,18 @@ class ServerSessionTests(unittest.TestCase):
             },
         )
         self.assertEqual(response.status_code, 502)
+
+    @patch("app.server.CVChatService")
+    @patch("app.server.get_settings", return_value=Settings("test-key", "gemini-2.5-flash"))
+    def test_format_active_cv_as_harvard(self, _, service_class) -> None:
+        service_class.return_value.format_cv_harvard.return_value = harvard_data()
+        response = self.client.post(
+            "/api/cv/format-harvard",
+            json={"cv_text": "Python developer", "filename": "candidate.pdf"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["template"], "harvard")
+        self.assertTrue(b64decode(response.json()["pdf_base64"]).startswith(b"%PDF"))
 
     def test_extract_cv_unicode_icon_mapping(self) -> None:
         upload = self.client.post(

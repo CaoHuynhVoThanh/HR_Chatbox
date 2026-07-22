@@ -11,6 +11,7 @@ class HarvardCVTests(unittest.TestCase):
         cv = parse_harvard_cv_json('{"full_name": "Nguyễn Văn A", "contact": {"email": "a@example.com"}}')
         self.assertEqual(cv["summary"], "")
         self.assertEqual(cv["contact"]["phone"], "")
+        self.assertNotIn("additional", cv)
 
         pdf = render_harvard_cv_pdf(cv)
         text = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(pdf)).pages)

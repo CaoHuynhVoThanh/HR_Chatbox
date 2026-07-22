@@ -25,6 +25,11 @@ const quickActions = [
     prompt: 'Hãy tạo bộ đúng 20 câu hỏi phỏng vấn dựa trên CV của tôi, nhóm theo chủ đề và độ khó.',
   },
   {
+    label: 'Format CV Harvard',
+    description: 'Chuẩn hoá CV tiếng Anh',
+    prompt: '__FORMAT_HARVARD__',
+  },
+  {
     label: 'Hợp nhất CV',
     description: 'So sánh & tổng hợp 2 CV',
     prompt: '__MERGE__',
@@ -84,6 +89,7 @@ function App() {
   const [error, setError] = useState('')
   const [mergeTarget, setMergeTarget] = useState(null)
   const [mergeInProgress, setMergeInProgress] = useState(false)
+  const [formatInProgress, setFormatInProgress] = useState(false)
   const [showPrivacyNotice, setShowPrivacyNotice] = useState(
     () => sessionStorage.getItem(SESSION_NOTICE_KEY) !== 'true',
   )
@@ -290,6 +296,50 @@ function App() {
     }
   }
 
+  async function formatActiveCvAsHarvard() {
+    if (!activeCv || formatInProgress) return
+    setFormatInProgress(true)
+    setError('')
+    try {
+      const response = await fetch(`${api}/cv/format-harvard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cv_text: activeCv.cvText, filename: activeCv.fileName }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.detail || 'Không thể định dạng CV theo mẫu Harvard.')
+      setSession((current) => ({
+        ...current,
+        messages: [
+          ...current.messages,
+          { role: 'assistant', content: result.markdown },
+        ],
+      }))
+      if (result.pdf_base64) {
+        const bytes = Uint8Array.from(atob(result.pdf_base64), c => c.charCodeAt(0))
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+        setSession((current) => ({
+          ...current,
+          messages: [
+            ...current.messages,
+            {
+              role: 'assistant',
+              content: 'CV theo mẫu Harvard đã sẵn sàng để tải về.',
+              downloadUrl: url,
+              downloadName: 'cv-harvard.pdf',
+            },
+          ],
+        }))
+      }
+    } catch (requestError) {
+      const message = requestError.message || 'Chatbot chưa thể định dạng CV theo mẫu Harvard. Vui lòng thử lại trong giây lát.'
+      setError(message)
+      setSession((current) => ({ ...current, messages: [...current.messages, { role: 'assistant', content: message }] }))
+    } finally {
+      setFormatInProgress(false)
+    }
+  }
+
   function clearSession() {
     sessionStorage.removeItem(SESSION_KEY)
     setSession(emptySession())
@@ -402,6 +452,7 @@ function App() {
             })}
             {sending && <div className="thinking"><span /><span /><span /> AI đang phân tích CV</div>}
             {mergeInProgress && <div className="thinking"><span /><span /><span /> Đang hợp nhất CV…</div>}
+            {formatInProgress && <div className="thinking"><span /><span /><span /> Đang định dạng CV Harvard…</div>}
           </div>
 
           <form className="composer" onSubmit={(event) => { event.preventDefault(); sendMessage(draft) }}>
@@ -459,8 +510,9 @@ function App() {
             <div className="card-title"><span className="card-icon">⌁</span><div><p className="eyebrow">AI ACTIONS</p><h2>Các chức năng nhanh</h2></div></div>
             <div className="action-list">
               {quickActions.map((action, index) => (
-                <button className="action-button" key={action.label} type="button" disabled={!hasCv || sending} onClick={() => {
+                <button className="action-button" key={action.label} type="button" disabled={!hasCv || sending || mergeInProgress || formatInProgress} onClick={() => {
                   if (action.prompt === '__MERGE__') return startMergeFlow()
+                  if (action.prompt === '__FORMAT_HARVARD__') return formatActiveCvAsHarvard()
                   return sendMessage(action.prompt)
                 }}>
                   <span className="action-index">0{index + 1}</span>

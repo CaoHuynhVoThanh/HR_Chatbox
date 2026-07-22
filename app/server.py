@@ -57,6 +57,12 @@ class MergeRequest(BaseModel):
     job_context: str | None = None
 
 
+class HarvardFormatRequest(BaseModel):
+    cv_text: str = Field(min_length=1, max_length=MAX_CV_TEXT_CHARS)
+    filename: str = Field(min_length=1, max_length=255)
+    job_context: str | None = None
+
+
 @app.get("/health")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok", "storage": "browser-session"}
@@ -146,4 +152,23 @@ def merge_cvs(request: MergeRequest) -> dict[str, str]:
             detail="Chatbot chưa thể hợp nhất CV. Vui lòng thử lại trong giây lát.",
         ) from exc
 
+    return {"markdown": md, "pdf_base64": pdf_b64, "template": "harvard"}
+
+
+@app.post("/api/cv/format-harvard", status_code=status.HTTP_200_OK)
+def format_cv_harvard(request: HarvardFormatRequest) -> dict[str, str]:
+    """Format the active CV as an English Harvard-style CV without merging."""
+    try:
+        service = CVChatService(
+            settings=get_settings(),
+            cv=CVDocument(path=Path("browser-session-cv"), text=request.cv_text),
+        )
+        harvard_cv = service.format_cv_harvard(request.cv_text, request.filename, request.job_context)
+        md = harvard_cv_to_markdown(harvard_cv)
+        pdf_b64 = base64.b64encode(render_harvard_cv_pdf(harvard_cv)).decode("ascii")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Chatbot chưa thể định dạng CV theo mẫu Harvard. Vui lòng thử lại trong giây lát.",
+        ) from exc
     return {"markdown": md, "pdf_base64": pdf_b64, "template": "harvard"}

@@ -76,7 +76,6 @@ def parse_harvard_cv_json(raw: str) -> dict[str, Any]:
         "projects": _records(payload.get("projects"), ("name", "dates", "details", "bullets")),
         "skills": _list_of_text(payload.get("skills")),
         "certifications": _list_of_text(payload.get("certifications")),
-        "additional": _list_of_text(payload.get("additional")),
     }
 
 
@@ -98,8 +97,8 @@ def harvard_cv_to_markdown(cv: dict[str, Any]) -> str:
         lines.append(f"### {item['name']}")
         lines.append(item["details"])
         lines.extend(f"- {bullet}" for bullet in item["bullets"])
-    lines.extend(["", "## Skills", " · ".join(cv["skills"]), "", "## Certifications & Additional Information"])
-    lines.extend(cv["certifications"] + cv["additional"])
+    lines.extend(["", "## Skills", " · ".join(cv["skills"]), "", "## Certifications"])
+    lines.extend(cv["certifications"])
     return "\n".join(lines).strip()
 
 
@@ -186,8 +185,7 @@ def render_harvard_cv_pdf(cv: dict[str, Any]) -> bytes:
         project_content.append(Spacer(1, 2 * mm))
     add_section("PROJECTS", project_content)
     add_section("SKILLS", [_paragraph(" · ".join(cv["skills"]), body)] if cv["skills"] else [])
-    additional = cv["certifications"] + cv["additional"]
-    add_section("CERTIFICATIONS & ADDITIONAL INFORMATION", [_paragraph(" · ".join(additional), body)] if additional else [])
+    add_section("CERTIFICATIONS", [_paragraph(" · ".join(cv["certifications"]), body)] if cv["certifications"] else [])
 
     document.build(story)
     result = buffer.getvalue()

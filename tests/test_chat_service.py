@@ -22,7 +22,6 @@ class MergeCVTests(unittest.TestCase):
                     "projects": [],
                     "skills": ["Python"],
                     "certifications": [],
-                    "additional": [],
                 }
             )
         )
@@ -45,3 +44,17 @@ class MergeCVTests(unittest.TestCase):
         self.assertIn("primary.pdf", messages[1].content)
         self.assertIn("secondary.docx", messages[1].content)
         self.assertNotIsInstance(messages[1].content, list)
+
+    @patch("app.core.chat_service.ChatGoogleGenerativeAI")
+    def test_format_one_cv_does_not_add_an_empty_second_source(self, model_class) -> None:
+        model_class.return_value.invoke.return_value = SimpleNamespace(
+            content='{"full_name":"Nguyen Van A","contact":{},"experience":[],"education":[],"projects":[],"skills":[],"certifications":[]}'
+        )
+        service = object.__new__(CVChatService)
+        service.settings = Settings("test-key", "gemini-2.5-flash")
+
+        service.format_cv_harvard("One source", "candidate.pdf")
+
+        prompt = model_class.return_value.invoke.call_args.args[0][1].content
+        self.assertIn("candidate.pdf", prompt)
+        self.assertEqual(prompt.count("TỆP CV:"), 1)
