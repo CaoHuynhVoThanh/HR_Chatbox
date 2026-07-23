@@ -1,6 +1,7 @@
 # HR CV Chatbot
 
 Chatbox AI cho phép nhận xét CV, luyện phỏng vấn, đánh giá câu trả lời và tạo báo cáo. Lõi nghiệp vụ dùng chung cho demo terminal và FastAPI backend.
+Bạn có thể dùng thử tại đây: https://hr-chatbox-2fywkkept-caohuynhvothanhs-projects.vercel.app/
 
 ## Chuẩn bị
 
