@@ -7,6 +7,7 @@ and temporarily writes a CV while extracting its text.
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -29,13 +30,34 @@ app = FastAPI(
     version="0.2.0",
     description="Stateless API. The browser stores CV and conversation data in sessionStorage.",
 )
+
+frontend_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=backend_settings.allowed_origins,
+    allow_origins=[
+        "http://localhost:5173",
+        "https://hr-chatbox.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*-caohuynhvothanhs-projects\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=backend_settings.allowed_origins,
+#     allow_credentials=True,
+#     allow_methods=["GET", "POST"],
+#     allow_headers=["Content-Type"],
+# )
     
 class HistoryTurn(BaseModel):
     user: str = Field(min_length=1, max_length=12_000)
