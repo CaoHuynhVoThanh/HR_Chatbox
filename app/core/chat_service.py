@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -24,6 +25,9 @@ CV đã được trích xuất (có thể bị cắt bớt vì giới hạn ng�
 
 Chỉ dẫn phối hợp agent cho lượt này:
 {agent_brief}
+
+Thời điểm hiện tại theo múi giờ Việt Nam (UTC+07:00): {current_datetime}.
+Khi người dùng hỏi thông tin ngoài CV cần kiến thức mới/có thể thay đổi, bạn có thể dùng Google Search nếu công cụ được bật. Chỉ tra cứu khi cần; với thông tin tra cứu được, hãy nêu nguồn ở cuối câu trả lời. Không dùng web để bịa hoặc suy luận thông tin cá nhân của người dùng.
 """
 
 
@@ -57,6 +61,69 @@ class CVChatService:
         )
         self.chain = prompt | model | StrOutputParser()
 
+    @staticmethod
+    def _current_datetime() -> str:
+        vietnam_timezone = timezone(timedelta(hours=7))
+        return datetime.now(vietnam_timezone).strftime("%Y-%m-%d %H:%M (UTC+07:00)")
+
+    def _system_context(self, agent_brief: str) -> str:
+        return SYSTEM_PROMPT.format(
+            cv_text=self.session.cv.text[:MAX_CV_CONTEXT_CHARS],
+            agent_brief=agent_brief,
+            current_datetime=self._current_datetime(),
+        )
+
+    @staticmethod
+    def _grounded_sources(response: object) -> list[tuple[str, str]]:
+        """Extract source links defensively from the Gemini SDK response."""
+        candidates = getattr(response, "candidates", None) or []
+        if not candidates:
+            return []
+        metadata = getattr(candidates[0], "grounding_metadata", None)
+        chunks = getattr(metadata, "grounding_chunks", None) or []
+        sources: list[tuple[str, str]] = []
+        for chunk in chunks:
+            web = getattr(chunk, "web", None)
+            url = getattr(web, "uri", "") if web else ""
+            title = getattr(web, "title", "") if web else ""
+            if url and (title or url) and (title or url, url) not in sources:
+                sources.append((title or url, url))
+        return sources
+
+    def _reply_with_google_search(self, text: str, agent_brief: str) -> str:
+        """Ask Gemini with managed Google Search grounding enabled."""
+        from google import genai
+        from google.genai import types
+
+        history = []
+        for question, answer in self.session.history[-6:]:
+            history.extend(
+                [
+                    types.Content(role="user", parts=[types.Part.from_text(text=question)]),
+                    types.Content(role="model", parts=[types.Part.from_text(text=answer)]),
+                ]
+            )
+        history.append(types.Content(role="user", parts=[types.Part.from_text(text=text)]))
+        client = genai.Client(api_key=self.settings.gemini_api_key)
+        response = client.models.generate_content(
+            model=self.settings.gemini_model,
+            contents=history,
+            config=types.GenerateContentConfig(
+                system_instruction=self._system_context(agent_brief),
+                temperature=0.35,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
+        )
+        answer = (response.text or "").strip()
+        if not answer:
+            raise RuntimeError("Gemini không trả về phản hồi.")
+        sources = self._grounded_sources(response)
+        if sources:
+            answer += "\n\n### Sources\n" + "\n".join(
+                f"- [{title}]({url})" for title, url in sources
+            )
+        return answer
+
     def reply(self, user_message: str) -> str:
         text = user_message.strip()
         if not text:
@@ -67,14 +134,18 @@ class CVChatService:
             for user, assistant in self.session.history
             for index, question in enumerate((user, assistant))
         ]
-        response = self.chain.invoke(
-            {
-                "cv_text": self.session.cv.text[:MAX_CV_CONTEXT_CHARS],
-                "agent_brief": brief.instructions,
-                "history": history[-12:],
-                "user_message": text,
-            }
-        ).strip()
+        if self.settings.enable_web_search:
+            response = self._reply_with_google_search(text, brief.instructions)
+        else:
+            response = self.chain.invoke(
+                {
+                    "cv_text": self.session.cv.text[:MAX_CV_CONTEXT_CHARS],
+                    "agent_brief": brief.instructions,
+                    "history": history[-12:],
+                    "user_message": text,
+                    "current_datetime": self._current_datetime(),
+                }
+            ).strip()
         self.session.history.append((text, response))
         return response
 

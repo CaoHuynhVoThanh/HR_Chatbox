@@ -30,3 +30,7 @@ class SettingsTests(unittest.TestCase):
         with patch.dict(os.environ, {"BACKEND_PORT": "8000", "PORT": "10000"}, clear=False):
             settings = get_backend_settings()
         self.assertEqual(settings.backend_port, 10000)
+
+    def test_web_search_is_enabled_by_default_and_can_be_disabled(self) -> None:
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "key", "GEMINI_ENABLE_WEB_SEARCH": "false"}, clear=False):
+            self.assertFalse(get_settings().enable_web_search)

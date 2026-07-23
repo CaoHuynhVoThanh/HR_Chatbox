@@ -18,6 +18,7 @@ class BackendSettings:
 class Settings:
     gemini_api_key: str
     gemini_model: str
+    enable_web_search: bool = False
 
 
 def get_backend_settings() -> BackendSettings:
@@ -61,4 +62,5 @@ def get_settings() -> Settings:
     return Settings(
         gemini_api_key=api_key,
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+        enable_web_search=os.getenv("GEMINI_ENABLE_WEB_SEARCH", "true").strip().lower() in {"1", "true", "yes", "on"},
     )
