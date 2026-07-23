@@ -3,7 +3,7 @@ import unittest
 
 from pypdf import PdfReader
 
-from app.core.harvard_cv import parse_harvard_cv_json, render_harvard_cv_pdf
+from app.core.harvard_cv import harvard_cv_to_markdown, parse_harvard_cv_json, render_harvard_cv_pdf
 
 
 class HarvardCVTests(unittest.TestCase):
@@ -12,6 +12,8 @@ class HarvardCVTests(unittest.TestCase):
         self.assertEqual(cv["summary"], "")
         self.assertEqual(cv["contact"]["phone"], "")
         self.assertNotIn("additional", cv)
+        self.assertNotIn("Phone:", harvard_cv_to_markdown(cv))
+        self.assertIn("Email: a@example.com", harvard_cv_to_markdown(cv))
 
         pdf = render_harvard_cv_pdf(cv)
         text = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(pdf)).pages)

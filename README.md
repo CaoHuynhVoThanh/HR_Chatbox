@@ -12,8 +12,6 @@ Copy-Item .env.example .env
 
 Điền `GEMINI_API_KEY` vào `.env`. Gemini được gọi qua `langchain-google-genai`; model mặc định là `gemini-2.5-flash` và có thể thay bằng `GEMINI_MODEL`.
 
-Đặt một CV `.pdf` hoặc `.docx` vào `data/cv/` (hoặc truyền đường dẫn bằng `--cv`). CV bị bỏ qua khỏi Git theo mặc định vì có dữ liệu cá nhân.
-
 ## Chạy demo
 
 ```powershell
@@ -45,7 +43,7 @@ npm install
 npm run dev
 ```
 
-Mở `http://localhost:5173`. Giao diện desktop dùng tỉ lệ 75% chat và 25% sidebar: phần trên để upload/thay CV, phần dưới có các tác vụ Nhận xét CV, Cải thiện CV và Tạo 20 câu hỏi phỏng vấn.
+Backend mở tại `http://localhost:5173`.
 
 API chạy tại `BACKEND_PUBLIC_URL`, tài liệu tương tác tại `BACKEND_PUBLIC_URL/docs`. Có thể đổi host, port và URL public trong `.env` mà không cần sửa mã nguồn:
 
@@ -67,7 +65,7 @@ API chỉ có hai endpoint không trạng thái:
 1. `POST /api/cv/extract` — nhận multipart `file`, trích xuất văn bản và không lưu file.
 2. `POST /api/chat` — nhận `cv_text`, `history` và `content`; gọi Gemini rồi trả về phản hồi.
 
-Lưu ý: `sessionStorage` không thể chứa trực tiếp đối tượng `File`, vì vậy client chuyển file sang Base64. Dung lượng mỗi tab tùy trình duyệt; client giới hạn file CV tối đa 5 MB để giảm nguy cơ vượt quota. Không dùng phương án này nếu cần giữ dữ liệu sau khi đóng tab hoặc cần đồng bộ nhiều thiết bị.
+Lưu ý: `sessionStorage` không thể chứa trực tiếp đối tượng `File`, vì vậy client chuyển file sang Base64. Dung lượng mỗi tab tùy trình duyệt; client giới hạn file CV tối đa 5 MB để giảm nguy cơ vượt quota.
 
 ## Luồng agent
 

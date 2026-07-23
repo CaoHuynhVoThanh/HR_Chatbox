@@ -91,6 +91,7 @@ class CVChatService:
             "Bạn là chuyên gia viết CV. Hãy chuẩn hoá một hoặc hai CV nguồn thành dữ liệu cho CV một cột theo phong cách Harvard. "
             "Chỉ dùng dữ kiện xuất hiện trong các CV nguồn; không bịa số liệu, thời gian, kỹ năng hay thành tích. "
             "Khi thiếu dữ liệu, dùng chuỗi rỗng \"\" cho trường đơn và [] cho danh sách; không suy đoán hoặc ghi chú thích. "
+            "Với thông tin liên hệ như Phone, Email, Location, LinkedIn và Website, chỉ điền khi có trong CV nguồn; trường không có dữ liệu sẽ không hiển thị trong CV. "
             "Khi hai CV mâu thuẫn, dùng diễn đạt trung tính hoặc để trống trường mâu thuẫn. "
             "Viết TOÀN BỘ giá trị văn bản trong JSON bằng tiếng Anh chuyên nghiệp, kể cả khi CV nguồn bằng tiếng Việt; "
             "giữ nguyên tên riêng, tên tổ chức, URL, email, số điện thoại, tên công nghệ và các dữ kiện không nên dịch. "

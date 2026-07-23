@@ -23,7 +23,9 @@ class Settings:
 def get_backend_settings() -> BackendSettings:
     """Load FastAPI storage, browser-origin and network settings from .env."""
     load_dotenv()
-    raw_port = os.getenv("BACKEND_PORT", "8000")
+    # Platforms such as Render inject PORT at runtime. Prefer it over the
+    # local BACKEND_PORT while keeping the latter for development.
+    raw_port = os.getenv("PORT", os.getenv("BACKEND_PORT", "8000"))
     try:
         backend_port = int(raw_port)
     except ValueError as exc:

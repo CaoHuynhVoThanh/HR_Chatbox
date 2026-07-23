@@ -25,3 +25,8 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.backend_host, "0.0.0.0")
         self.assertEqual(settings.backend_port, 8080)
         self.assertEqual(settings.backend_public_url, "https://api.example.com")
+
+    def test_platform_port_overrides_local_backend_port(self) -> None:
+        with patch.dict(os.environ, {"BACKEND_PORT": "8000", "PORT": "10000"}, clear=False):
+            settings = get_backend_settings()
+        self.assertEqual(settings.backend_port, 10000)

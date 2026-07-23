@@ -36,8 +36,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
-
-
+    
 class HistoryTurn(BaseModel):
     user: str = Field(min_length=1, max_length=12_000)
     assistant: str = Field(min_length=1, max_length=12_000)

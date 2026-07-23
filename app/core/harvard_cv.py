@@ -82,7 +82,11 @@ def parse_harvard_cv_json(raw: str) -> dict[str, Any]:
 def harvard_cv_to_markdown(cv: dict[str, Any]) -> str:
     """A chat-friendly preview of the exact fields rendered into the PDF."""
     lines = [f"# {cv['full_name']}", cv["headline"], "", "## Contact"]
-    contact = [f"{label}: {cv['contact'][key]}" for key, label in (("phone", "Phone"), ("email", "Email"), ("location", "Location"), ("linkedin", "LinkedIn"), ("website", "Website"))]
+    contact = [
+        f"{label}: {cv['contact'][key]}"
+        for key, label in (("phone", "Phone"), ("email", "Email"), ("location", "Location"), ("linkedin", "LinkedIn"), ("website", "Website"))
+        if cv["contact"][key]
+    ]
     lines.append(" · ".join(contact))
     lines.extend(["", "## Summary", cv["summary"], "", "## Experience"])
     for item in cv["experience"]:
@@ -133,7 +137,7 @@ def render_harvard_cv_pdf(cv: dict[str, Any]) -> bytes:
     blank = Spacer(1, 11 * mm)
 
     contact_line = "  |  ".join(
-        f"{label}: {cv['contact'][key] or '____________'}"
+        f"{label}: {cv['contact'][key]}"
         for key, label in (
             ("phone", "Phone"),
             ("email", "Email"),
@@ -141,6 +145,7 @@ def render_harvard_cv_pdf(cv: dict[str, Any]) -> bytes:
             ("linkedin", "LinkedIn"),
             ("website", "Website"),
         )
+        if cv["contact"][key]
     )
     story: list[Any] = [
         _paragraph(cv["full_name"], name),

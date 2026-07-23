@@ -318,6 +318,7 @@ function App() {
       if (result.pdf_base64) {
         const bytes = Uint8Array.from(atob(result.pdf_base64), c => c.charCodeAt(0))
         const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+        const markdownUrl = URL.createObjectURL(new Blob([result.markdown || ''], { type: 'text/markdown;charset=utf-8' }))
         setSession((current) => ({
           ...current,
           messages: [
@@ -327,6 +328,8 @@ function App() {
               content: 'CV theo mẫu Harvard đã sẵn sàng để tải về.',
               downloadUrl: url,
               downloadName: 'cv-harvard.pdf',
+              markdownDownloadUrl: markdownUrl,
+              markdownDownloadName: 'cv-harvard.md',
             },
           ],
         }))
@@ -432,14 +435,23 @@ function App() {
                   </article>
                 )
               }
-              if (message.downloadUrl) {
+              if (message.downloadUrl || message.markdownDownloadUrl) {
                 return (
                   <article className={`bubble ${message.role}`} key={`download-${index}`}>
                     <span className="bubble-label">CV INTELLIGENCE</span>
                     <p>{message.content}</p>
-                    <a className="download-button" href={message.downloadUrl} download={message.downloadName || 'cv-harvard.pdf'}>
-                      ↓ Tải CV Harvard
-                    </a>
+                    <div className="download-actions">
+                      {message.markdownDownloadUrl && (
+                        <a className="download-button secondary" href={message.markdownDownloadUrl} download={message.markdownDownloadName || 'cv-harvard.md'}>
+                          ↓ Tải Markdown
+                        </a>
+                      )}
+                      {message.downloadUrl && (
+                        <a className="download-button" href={message.downloadUrl} download={message.downloadName || 'cv-harvard.pdf'}>
+                          ↓ Tải PDF
+                        </a>
+                      )}
+                    </div>
                   </article>
                 )
               }
